@@ -1,0 +1,4 @@
+#!/bin/sh
+# Resolve our app without depending on PATH, Python, or a running GUI instance.
+RESOURCE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+exec "$RESOURCE_DIR/../MacOS/USBKey" --git-ssh "$@"

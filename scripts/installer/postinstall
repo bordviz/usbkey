@@ -1,0 +1,17 @@
+#!/bin/sh
+# Open the updated app in the console user's session, then register login launch.
+# --updated is a one-time launch and respects the user's autostart preference on
+# future logins; it is not an attempt to re-grant TCC permissions.
+if [ "$3" != "/" ]; then exit 0; fi
+console_user=$(/usr/bin/stat -f '%Su' /dev/console)
+case "$console_user" in root|loginwindow|_mbsetupuser|'') exit 0 ;; esac
+console_uid=$(/usr/bin/id -u "$console_user")
+if [ "$console_uid" -lt 501 ]; then exit 0; fi
+if ! /bin/launchctl asuser "$console_uid" /usr/bin/sudo -u "$console_user" -- /usr/bin/open -g /Applications/USBKey.app --args --background --updated; then
+    echo 'USBKey: automatic launch unavailable; open /Applications/USBKey.app manually.' >&2
+fi
+/bin/launchctl bootout "gui/$console_uid/local.usbkey.autostart" >/dev/null 2>&1 || true
+if ! /bin/launchctl bootstrap "gui/$console_uid" /Library/LaunchAgents/local.usbkey.autostart.plist; then
+    echo 'USBKey: login launch registration unavailable.' >&2
+fi
+exit 0

@@ -1,0 +1,23 @@
+#!/bin/sh
+set -eu
+# Close existing UI processes before Installer replaces the bundle. User data,
+# Keychain, preferences, USB files and TCC permissions are never removed.
+if [ "$3" != "/" ]; then exit 0; fi
+console_user=$(/usr/bin/stat -f '%Su' /dev/console)
+case "$console_user" in root|loginwindow|_mbsetupuser|'') exit 0 ;; esac
+console_uid=$(/usr/bin/id -u "$console_user")
+if [ "$console_uid" -lt 501 ]; then exit 0; fi
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+# Package script directories may be root-only. Copy this signed helper into a
+# root-owned, non-writable directory that the GUI user can traverse and execute.
+helper_dir=$(/usr/bin/mktemp -d /private/tmp/USBKey-update.XXXXXX)
+trap '/bin/rm -rf "$helper_dir"' EXIT HUP INT TERM
+/bin/chmod 755 "$helper_dir"
+/bin/cp "$script_dir/close-usbkey" "$helper_dir/close-usbkey"
+/bin/chmod 755 "$helper_dir/close-usbkey"
+if ! /bin/launchctl asuser "$console_uid" /usr/bin/sudo -u "$console_user" -- "$helper_dir/close-usbkey"; then
+    echo 'USBKey: the old app could not be closed; installation stopped before replacing files.' >&2
+    exit 1
+fi
+/bin/launchctl bootout "gui/$console_uid/local.usbkey.autostart" >/dev/null 2>&1 || true
+exit 0
